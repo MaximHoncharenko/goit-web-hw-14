@@ -1,8 +1,10 @@
-from sqlalchemy import Column, Integer, String, Date, Text, ForeignKey, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, Date, Text, ForeignKey, DateTime, Boolean, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime, date
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, constr
+from typing import Pattern
+
 
 # Base class for all models
 Base = declarative_base()
@@ -26,7 +28,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=func.now())
     avatar_url = Column(String, nullable=True)
     is_verified = Column(Boolean, default=False)
     verification_code = Column(String, nullable=True)
@@ -54,10 +56,10 @@ class Contact(Base):
     first_name = Column(String, index=True)
     last_name = Column(String, index=True)
     email = Column(String, unique=True, index=True)
-    phone_number = Column(String)
+    phone_number = Column(String, nullable=False)  
     birthday = Column(Date)
     additional_info = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=func.now())
     
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     owner = relationship("User", back_populates="contacts")

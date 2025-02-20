@@ -3,6 +3,7 @@
 Містить ендпоінти для реєстрації, автентифікації, підтвердження email, обмеження запитів, управління контактами тощо.
 """
 
+from typing import Pattern
 from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import create_engine
@@ -25,11 +26,13 @@ import os
 import logging
 import secrets
 from fastapi import File, UploadFile
+from fastapi import Request
 
 import models
 import crud
 import schemas
 from crud import send_verification_email
+from models import User
 
 # Завантаження змінних середовища
 load_dotenv()
@@ -106,9 +109,10 @@ def get_current_user(db: Session = Depends(get_db), token: str = Depends(token_a
 
 @app.get("/contacts/", response_model=List[schemas.ContactResponse])
 @limiter.limit("5/minute")
-def get_contacts(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+def get_contacts(request: Request, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     """Отримання всіх контактів поточного користувача."""
     return db.query(models.Contact).filter(models.Contact.owner_id == current_user.id).all()
+
 
 # Функція створення токену доступу
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
@@ -118,27 +122,24 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-# Реєстрація користувача
-@app.post("/register/", status_code=status.HTTP_201_CREATED)
-def register_user(email: str, password: str, db: Session = Depends(get_db)):
-    """Реєстрація нового користувача."""
-    db_user = db.query(models.User).filter(models.User.email == email).first()
-    if db_user:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+# Функція хешування пароля
+def hash_password(password: str) -> str:
+    """Хешування пароля за допомогою bcrypt."""
+    return pwd_context.hash(password)
 
-    verification_code = secrets.token_urlsafe(16)
-    hashed_password = pwd_context.hash(password)
-    new_user = models.User(email=email, hashed_password=hashed_password, verification_code=verification_code)
+# Реєстрація користувача
+@app.post("/register/")
+def register_user(email: str, password: str, db: Session = Depends(get_db)):
+    # Перевірка наявності користувача з таким email
+    existing_user = db.query(User).filter(User.email == email).first()
+    if existing_user:
+        raise HTTPException(status_code=409, detail="Email already registered")
     
-    try:
-        db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
-        send_verification_email(email, verification_code)
-        return {"message": "User created successfully. Please verify your email."}
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error creating user")
+    hashed_password = hash_password(password)
+    new_user = User(email=email, hashed_password=hashed_password)
+    db.add(new_user)
+    db.commit()
+    return {"message": "User created successfully"}
 
 # Оновлення аватара користувача
 @app.put("/update_avatar/")

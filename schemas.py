@@ -1,6 +1,8 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, constr
 from datetime import date
 from typing import Optional
+from typing import Pattern
+
 
 class ContactCreate(BaseModel):
     """
@@ -72,6 +74,8 @@ class ContactUpdate(BaseModel):
         orm_mode = True
 
 class UserCreate(BaseModel):
+    email: EmailStr
+    password: constr
     """
     Schema for user registration.
     
@@ -79,9 +83,6 @@ class UserCreate(BaseModel):
         email (str): The email address of the user.
         password (str): The password of the user.
     """
-    email: str
-    password: str
-
     class Config:
         orm_mode = True
 
